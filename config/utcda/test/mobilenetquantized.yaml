@@ -1,0 +1,25 @@
+data:
+  name: "UTCDA"
+  util_location: "framework_activity_recognition.datautils.prepare_custom_test"
+  data_path: "./utcda_splitted/"
+  test_split: "test_clip_front.csv"
+  n_frame: 16
+  stride: 15
+  frame_size: 224
+  
+architecture:
+  location: "architecture.mobilenetquant.MobileNetLogit"
+  width_mult: 0.5 # 1.0 1.5
+  dropout_prob: 0.2
+  pool:
+    kernel: 1
+    width: 7
+    height: 7
+  model: "./model/StudentTeacherQuantization_VideoMAE/exp0/"
+
+train:
+  batch_size: 16
+  num_workers: 4
+  quantization:
+    backend: 'fbgemm'
+  pin_memory: False

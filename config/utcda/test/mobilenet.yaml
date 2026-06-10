@@ -1,0 +1,19 @@
+data:
+  name: "UTCDA"
+  util_location: "framework_activity_recognition.datautils.prepare_custom_test"
+  data_path: "./utcda_splitted/"
+  test_split: "test_clip_front.csv"
+  n_frame: 16
+  stride: 16
+  frame_size: 224
+
+architecture:
+  location: "architecture.mobilenet.MobileNetLogit"
+  width_mult: 0.5
+  dropout_prob: 0.2
+  model: "./model/MobileNetBaseline_UTCDA/MobileNetBaseline_UTCDA/exp0/"
+
+train:
+  batch_size: 16
+  num_workers: 5
+  pin_memory: False

@@ -1,0 +1,54 @@
+experiment:
+  name: "MobileNetBaseline_UTCDA"
+  model_save_path: "./model/MobileNetBaseline_UTCDA/"
+  experiment_number: 0
+
+data:
+  name: "UTCDA"
+  util_location: "framework_activity_recognition.datautils.prepare_custom"
+  data_path: "./utcda_splitted/"       # thư mục chứa file CSV
+  train_split: "train_clip_front.csv"
+  test_split:  "test_clip_front.csv"
+  stride: 16                    # overlap = n_frame - stride = 16 frame
+  sampler:
+    use: True
+    location: "framework_activity_recognition.sampler.ImbalancedDatasetSampler"
+    parameter: {}
+  n_frame: 16
+  frame_size: 224
+
+student:
+  location: "architecture.mobilenet.MobileNetLogit"
+  width_mult: 0.5
+  dropout_prob: 0.2
+  name: "inception"
+
+pretraining:
+  use: True
+  path: "./pretrained/kinetics_mobilenet_0.5x_RGB_16_best.pth"
+  model_num_classes: 600
+  fine_tune_only_last_layer: False
+
+train:
+  modality: "train_baseline"
+  epoch: 30
+  criterion:
+    name: "CrossEntropyLoss"
+  optimizer:
+    name: "SGD"
+    parameter: {"lr": 0.001, "momentum": 0.9, "weight_decay": 0.00001}
+  batch_size: 16              
+  num_workers: 5
+  scheduler:
+    use: True
+    name: "MultiStepLR"
+    parameter: {"milestones": [50,100,200,300,400,500,600,700], "gamma": 0.2}
+  test_rate: 5
+  pin_memory: False
+
+resume:
+  use: True
+  path: "./model/MobileNetBaseline_UTCDA/MobileNetBaseline_UTCDA/exp0/best_model.pth"
+  
+config:
+  path: "./config/utcda/train/mobilenetbaseline.yaml"

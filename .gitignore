@@ -1,0 +1,164 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Virtual Environment
+# =========================
+venv/
+.venv/
+env/
+ENV/
+quantkd/
+myenv/
+
+# Conda
+.conda/
+conda-meta/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+
+# =========================
+# PyCharm
+# =========================
+.idea/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+log/
+
+# =========================
+# TensorBoard
+# =========================
+runs/
+tensorboard/
+events.out.tfevents.*
+
+# =========================
+# Training outputs
+# =========================
+outputs/
+output/
+results/
+checkpoints/
+checkpoint/
+ckpt/
+weights/
+models/
+model/
+saved_models/
+
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.engine
+*.trt
+
+# Quantized models
+*.tflite
+*.pb
+
+# =========================
+# Dataset
+# =========================
+data/
+dataset/
+datasets/
+DriveAndAct/
+Drive&Act/
+raw_data/
+processed_data/
+
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Images
+*.png
+*.jpg
+*.jpeg
+
+# Annotation files (nếu rất lớn)
+*.pkl
+*.pickle
+*.npz
+*.csv
+# =========================
+# Cache
+# =========================
+.cache/
+.cache/*
+.pytest_cache/
+.mypy_cache/
+
+# Torch cache
+torch_cache/
+
+# HuggingFace
+.huggingface/
+hf_cache/
+
+# =========================
+# CUDA profiling
+# =========================
+nsys-report*
+*.qdrep
+*.sqlite
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# =========================
+# Linux
+# =========================
+nohup.out
+
+# =========================
+# Archive files
+# =========================
+*.zip
+*.tar
+*.gz
+*.7z
