@@ -8,7 +8,6 @@ Usage:
         --gt          ./test_grt.csv \
         --output      ./output/ \
         --n_frame     16 \
-        --stride      16 \        ← PHẢI khớp với stride dùng trong inference!
         --fps         20 \
         --threshold   0.4 \
         --smooth_k    4
@@ -61,19 +60,18 @@ def gaussian_smoothing(x: np.ndarray, k: int = 3) -> np.ndarray:
 
 def localize(
     prob_seq: np.ndarray,
+    starts: list,
     action_threshold: float,
     n_frame: int,
     fps: float,
-    stride: int,
     background_label: int = 0,
 ) -> pd.DataFrame:
     """
     prob_seq : np.ndarray [n_windows, n_classes]  (after softmax)
+    starts   : actual start frame for each window
     Returns DataFrame with columns [label, start, end]  (in seconds)
 
-    FIX #1: stride phải khớp với stride dùng trong inference_untrimmed.py.
-            Thêm log cảnh báo nếu toàn bộ windows đều dưới threshold.
-    FIX: bỏ qua background_label (mặc định 0) để không tạo segment background.
+    FIX #1: Sử dụng starts thực tế từ inference để tránh lệch thời gian (temporal shift).
     """
     labels_idx = np.argmax(prob_seq, axis=1)   # [n_windows]
     probs_max  = np.max(prob_seq,    axis=1)   # [n_windows]
@@ -90,8 +88,9 @@ def localize(
         return pd.DataFrame(columns=["label", "start", "end"])
 
     rows = []
-    for i in np.where(active)[0]:
-        start_frame = int(i) * stride
+    active_indices = np.where(active)[0]
+    for i in active_indices:
+        start_frame = starts[i]
         end_frame   = start_frame + n_frame
         rows.append({
             "label": int(labels_idx[i]),
@@ -255,7 +254,7 @@ def main():
     parser.add_argument("--output",      default="./output/",  help="Output directory")
     parser.add_argument("--n_frame",     type=int,   default=16)
     parser.add_argument("--stride",      type=int,   default=16,
-                        help="PHẢI khớp với stride dùng trong inference_untrimmed.py!")
+                        help="Chỉ dùng để log hoặc fallback format cũ.")
     parser.add_argument("--fps",         type=float, default=20.0)
     parser.add_argument("--threshold",   type=float, default=0.4,  help="Action confidence threshold")
     parser.add_argument("--smooth",      choices=["mean", "gaussian", "none"], default="mean")
@@ -275,7 +274,7 @@ def main():
     # ── load ──────────────────────────────────────────────────────────────────
     print(f"Loading logits from: {args.input}")
     with open(args.input, "rb") as f:
-        logits_dict = pickle.load(f)  # {video_id (int): np.ndarray [n_windows, n_classes]}
+        data_dict = pickle.load(f)  # {video_id: {"logits": ..., "starts": ...}}
 
     gt = pd.read_csv(args.gt)
 
@@ -288,8 +287,16 @@ def main():
     # ── per-video inference → localization ───────────────────────────────────
     all_preds = []
 
-    for video_id, logits_seq in logits_dict.items():
-        # FIX #2: luôn dùng str key để đồng nhất với GT
+    for video_id, data in data_dict.items():
+        # Hỗ trợ cả format cũ (array) và format mới (dict)
+        if isinstance(data, dict):
+            logits_seq = data["logits"]
+            starts     = data["starts"]
+        else:
+            logits_seq = data
+            # Fallback cho format cũ: assume stride đều
+            starts = [i * args.stride for i in range(len(logits_seq))]
+
         video_id_str = str(video_id)
 
         if logits_seq.ndim != 2:
@@ -323,10 +330,10 @@ def main():
         # localize
         df_loc = localize(
             prob_seq,
+            starts=starts,
             action_threshold=args.threshold,
             n_frame=args.n_frame,
             fps=args.fps,
-            stride=args.stride,
         )
 
         # merge
@@ -344,7 +351,7 @@ def main():
     else:
         pred_df = pd.DataFrame(columns=["video_id", "label", "start", "end"])
         print("[WARN] Không có segment nào được tạo ra. "
-              "Kiểm tra --threshold và chắc chắn --stride khớp với lúc inference.\n")
+              "Kiểm tra --threshold.\n")
 
     pred_csv = os.path.join(args.output, "temporal_predictions.csv")
     pred_df.to_csv(pred_csv, index=False)
@@ -380,7 +387,6 @@ def main():
     summary_path = os.path.join(args.output, "localization_summary.txt")
     with open(summary_path, "w") as f:
         f.write(f"IoU threshold : {args.iou_thresh}\n")
-        f.write(f"stride        : {args.stride} (phải khớp với inference)\n")
         f.write(f"Mean Precision: {mean_p  * 100:.2f}%\n")
         f.write(f"Mean Recall   : {mean_r  * 100:.2f}%\n")
         f.write(f"Mean F1       : {mean_f1 * 100:.2f}%\n\n")

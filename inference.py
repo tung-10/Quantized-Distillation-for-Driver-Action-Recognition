@@ -20,14 +20,14 @@ import torch.nn as nn
 import yaml
 
 FILENAME_TO_ID: dict[str, int] = {
-    "/mnt/data2t/datasets/UTCDA/videos/01_011_01_0_front": 11,
-    "/mnt/data2t/datasets/UTCDA/videos/01_012_01_0_front": 12,
-    "/mnt/data2t/datasets/UTCDA/videos/01_013_01_0_front": 13,
-    "/mnt/data2t/datasets/UTCDA/videos/01_014_01_0_front": 14,
-    "/mnt/data2t/datasets/UTCDA/videos/01_015_01_0_front": 15,
-    "/mnt/data2t/datasets/UTCDA/videos/01_016_01_0_front": 16,
-    "/mnt/data2t/datasets/UTCDA/videos/01_017_01_0_front": 17,
-    "/mnt/data2t/datasets/UTCDA/videos/01_018_01_0_front": 18,
+    "01_011_01_0_front": 11,
+    "01_012_01_0_front": 12,
+    "01_013_01_0_front": 13,
+    "01_014_01_0_front": 14,
+    "01_015_01_0_front": 15,
+    "01_016_01_0_front": 16,
+    "01_017_01_0_front": 17,
+    "01_018_01_0_front": 18,
 }
 
 def load_config(path: str) -> dict:
@@ -59,7 +59,7 @@ def load_model(config: dict):
             ckpt["student_model_state_dict"], strict=False
         )
     else:
-        raise KeyError("Checkpoint do notes not contain 'model_state_dict' or 'student_model_state_dict'.")
+        raise KeyError("Checkpoint does not contain 'model_state_dict' or 'student_model_state_dict'.")
 
     if missing:
         print(f"  [WARN] Missing keys ({len(missing)}): {missing[:5]} …")
@@ -72,17 +72,9 @@ def load_model(config: dict):
     return model
 
 
-def preprocess_window(frames: list, frame_size: int) -> torch.Tensor:
-    """
-    frames : list of np.ndarray [H, W, C] uint8 RGB
-    returns: torch.Tensor [1, C, T, H, W]
-    """
-    if not frames:
-        raise ValueError("preprocess_window obtains empty frame list.")
-
+def get_preprocess_transform(frame_size: int):
     from torchvision import transforms
-
-    resize = transforms.Compose([
+    return transforms.Compose([
         transforms.ToPILImage(),
         transforms.Resize(int(frame_size * 1.15)),
         transforms.CenterCrop(frame_size),
@@ -91,7 +83,16 @@ def preprocess_window(frames: list, frame_size: int) -> torch.Tensor:
                              std =[0.229, 0.224, 0.225]),
     ])
 
-    tensors = [resize(f) for f in frames]           # list of [C, H, W]
+
+def preprocess_window(frames: list, transform) -> torch.Tensor:
+    """
+    frames : list of np.ndarray [H, W, C] uint8 RGB
+    returns: torch.Tensor [1, C, T, H, W]
+    """
+    if not frames:
+        raise ValueError("preprocess_window obtains empty frame list.")
+
+    tensors = [transform(f) for f in frames]           # list of [C, H, W]
     clip    = torch.stack(tensors, dim=1).unsqueeze(0)  # [1, C, T, H, W]
     return clip
 
@@ -145,11 +146,11 @@ def sliding_window_inference(
     frames: list,
     n_frame: int,
     stride: int,
-    frame_size: int,
-) -> np.ndarray:
+    transform,
+) -> tuple[np.ndarray, list[int]]:
     """
     Run model on every sliding window of `frames`.
-    Returns np.ndarray of shape [n_windows, n_classes] (raw logits).
+    Returns (logits, starts).
 
     FIX #6: loại bỏ window trùng lặp ở cuối bằng cách dùng set;
             stride tối thiểu là 1 để tránh vòng lặp vô hạn.
@@ -178,7 +179,7 @@ def sliding_window_inference(
         window = frames[start:end]
         window = pad_window(window, n_frame)   # đảm bảo đúng độ dài
 
-        clip = preprocess_window(window, frame_size)
+        clip = preprocess_window(window, transform)
 
         if torch.cuda.is_available():
             clip = clip.cuda()
@@ -199,7 +200,7 @@ def sliding_window_inference(
 
         logits_seq.append(out.squeeze(0).cpu().numpy())
 
-    return np.array(logits_seq)   # [n_windows, n_classes]
+    return np.array(logits_seq), starts
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -225,7 +226,9 @@ def main():
     model = load_model(config)
     print("Model loaded.\n")
 
-    results: dict[int, np.ndarray] = {}
+    transform = get_preprocess_transform(frame_size)
+
+    results: dict[int, dict] = {}
 
     # Đọc danh sách video từ file txt
     with open(args.videos, "r", encoding="utf-8") as f:
@@ -256,10 +259,13 @@ def main():
         print(f"  Processing {fname}  (id={video_id}) …")
         try:
             frames = read_video_frames(video_path)
-            logits = sliding_window_inference(
-                model, frames, n_frame, stride, frame_size
+            logits, starts = sliding_window_inference(
+                model, frames, n_frame, stride, transform
             )
-            results[video_id] = logits
+            results[video_id] = {
+                "logits": logits,
+                "starts": starts
+            }
             print(
                 f"  → {len(frames)} frames, {len(logits)} windows, "
                 f"shape={logits.shape}, "
@@ -278,7 +284,8 @@ def main():
 
         # FIX #11: in summary để dễ kiểm tra kết quả ngay
         print("\nSummary")
-        for vid_id, logits in results.items():
+        for vid_id, data in results.items():
+            logits = data["logits"]
             pred_classes = logits.argmax(axis=1)
             print(
                 f"  video_id={vid_id}: {logits.shape[0]} windows, "
