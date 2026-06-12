@@ -41,10 +41,13 @@ def load_model(config: dict):
     cfg = copy.deepcopy(config)     
     arch_cfg = cfg["architecture"]
 
-    ckpt = torch.load(
-        os.path.join(arch_cfg["model"], "best_model.pth"),
-        map_location="cpu",
-    )
+    model_path = os.path.join(arch_cfg["model"], "best_model.pth")
+    print(f"    Loading checkpoint: {model_path}")
+    ckpt = torch.load(model_path, map_location="cpu")
+    
+    if ckpt.get("annotation") is None:
+        raise KeyError(f"Checkpoint {model_path} does not contain 'annotation' or it is None.")
+    
     num_classes = len(ckpt["annotation"])
     cfg["train"]["num_classes"] = num_classes
 
@@ -76,7 +79,7 @@ def get_preprocess_transform(frame_size: int):
     from torchvision import transforms
     return transforms.Compose([
         transforms.ToPILImage(),
-        transforms.Resize(int(frame_size * 1.15)),
+        # Remove Resize to match training's direct CenterCrop
         transforms.CenterCrop(frame_size),
         transforms.ToTensor(),
         # Normalize to [-1, 1] to match training's normalizeColorInputZeroCenterUnitRange
@@ -102,7 +105,7 @@ def preprocess_window(frames: list, transform) -> torch.Tensor:
 def read_video_frames(video_path: str) -> list:
     """
     Read all frames from a video file.
-    Returns list of RGB np.ndarray.
+    Returns list of BGR np.ndarray (OpenCV default) to match training.
 
     FIX #4: raise lỗi rõ ràng nếu video corrupt hoặc không đọc được frame nào.
     """
@@ -115,7 +118,8 @@ def read_video_frames(video_path: str) -> list:
         ret, frame = cap.read()
         if not ret:
             break
-        frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        # OpenCV reads in BGR. We keep it as-is to match training logic.
+        frames.append(frame)
     cap.release()
 
     if not frames:
