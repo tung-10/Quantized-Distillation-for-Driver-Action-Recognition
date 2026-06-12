@@ -18,6 +18,7 @@ import cv2
 import torch
 import torch.nn as nn
 import yaml
+import traceback
 
 FILENAME_TO_ID: dict[str, int] = {
     "01_011_01_0_front": 11,
@@ -108,6 +109,7 @@ def read_video_frames(video_path: str) -> list:
     Returns list of BGR np.ndarray (OpenCV default) to match training.
 
     FIX #4: raise lỗi rõ ràng nếu video corrupt hoặc không đọc được frame nào.
+    Harden: bỏ qua các frame None để tránh lỗi NoneType sau này.
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -118,13 +120,16 @@ def read_video_frames(video_path: str) -> list:
         ret, frame = cap.read()
         if not ret:
             break
+        if frame is None:
+            # Bỏ qua frame None thay vì thêm vào list
+            continue
         # OpenCV reads in BGR. We keep it as-is to match training logic.
         frames.append(frame)
     cap.release()
 
     if not frames:
         raise ValueError(
-            f"Video đọc được 0 frame — có thể file bị corrupt: {video_path}"
+            f"Video đọc được 0 frame — có thể file bị corrupt hoặc rỗng: {video_path}"
         )
 
     return frames
@@ -278,6 +283,7 @@ def main():
                 f"mean={logits.mean():.4f}, std={logits.std():.4f}\n"
             )
         except Exception as e:
+            traceback.print_exc()  # In chi tiết lỗi để debug
             print(f"  [ERROR] {fname}: {e}\n")
             continue
 
