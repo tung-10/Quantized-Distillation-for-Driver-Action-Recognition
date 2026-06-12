@@ -79,8 +79,10 @@ def get_preprocess_transform(frame_size: int):
         transforms.Resize(int(frame_size * 1.15)),
         transforms.CenterCrop(frame_size),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std =[0.229, 0.224, 0.225]),
+        # Normalize to [-1, 1] to match training's normalizeColorInputZeroCenterUnitRange
+        # (x - 0.5) / 0.5 = 2x - 1
+        transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                             std =[0.5, 0.5, 0.5]),
     ])
 
 
