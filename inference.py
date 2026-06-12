@@ -46,6 +46,9 @@ def load_model(config: dict):
     print(f"    Loading checkpoint: {model_path}")
     ckpt = torch.load(model_path, map_location="cpu")
     
+    if "annotation" in ckpt:
+        print(f"    [INFO] Checkpoint classes: {ckpt['annotation']}")
+    
     if ckpt.get("annotation") is None:
         raise KeyError(f"Checkpoint {model_path} does not contain 'annotation' or it is None.")
     
@@ -76,31 +79,28 @@ def load_model(config: dict):
     return model
 
 
-def get_preprocess_transform(frame_size: int):
-    from torchvision import transforms
-    return transforms.Compose([
-        transforms.ToPILImage(),
-        # Remove Resize to match training's direct CenterCrop
-        transforms.CenterCrop(frame_size),
-        transforms.ToTensor(),
-        # Normalize to [-1, 1] to match training's normalizeColorInputZeroCenterUnitRange
-        # (x - 0.5) / 0.5 = 2x - 1
-        transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                             std =[0.5, 0.5, 0.5]),
-    ])
-
-
-def preprocess_window(frames: list, transform) -> torch.Tensor:
+def preprocess_window(frames: list, frame_size: int) -> torch.Tensor:
     """
-    frames : list of np.ndarray [H, W, C] uint8 RGB
+    Sử dụng trực tiếp các class Transform của project để đảm bảo tính nhất quán 100% với Training.
+    frames : list of np.ndarray [H, W, C] (BGR)
     returns: torch.Tensor [1, C, T, H, W]
     """
-    if not frames:
-        raise ValueError("preprocess_window obtains empty frame list.")
+    from framework_activity_recognition.videotransform import CenterCrop, normalizeColorInputZeroCenterUnitRange, ToTensor
 
-    tensors = [transform(f) for f in frames]           # list of [C, H, W]
-    clip    = torch.stack(tensors, dim=1).unsqueeze(0)  # [1, C, T, H, W]
-    return clip
+    # 1. Chuyển list frames thành numpy array [T, H, W, C]
+    clip_np = np.array(frames)
+
+    # 2. Khởi tạo các transform (giống hệt prepare_custom trong datautils.py)
+    crop = CenterCrop(frame_size, frame_size)
+    norm = normalizeColorInputZeroCenterUnitRange()
+    to_tensor = ToTensor()
+
+    # 3. Áp dụng theo thứ tự
+    clip_np = crop(clip_np)           # Cắt khung hình [T, 224, 224, 3]
+    clip_np = norm(clip_np)           # Chuẩn hóa về [-1, 1]
+    clip_torch = to_tensor(clip_np)   # Chuyển sang Tensor [C, T, 224, 224]
+
+    return clip_torch.unsqueeze(0)    # Thêm batch dim [1, C, T, H, W]
 
 
 def read_video_frames(video_path: str) -> list:
@@ -157,7 +157,7 @@ def sliding_window_inference(
     frames: list,
     n_frame: int,
     stride: int,
-    transform,
+    frame_size: int,
 ) -> tuple[np.ndarray, list[int]]:
     """
     Run model on every sliding window of `frames`.
@@ -190,7 +190,7 @@ def sliding_window_inference(
         window = frames[start:end]
         window = pad_window(window, n_frame)   # đảm bảo đúng độ dài
 
-        clip = preprocess_window(window, transform)
+        clip = preprocess_window(window, frame_size)
 
         if torch.cuda.is_available():
             clip = clip.cuda()
@@ -237,8 +237,6 @@ def main():
     model = load_model(config)
     print("Model loaded.\n")
 
-    transform = get_preprocess_transform(frame_size)
-
     results: dict[int, dict] = {}
 
     # Đọc danh sách video từ file txt
@@ -271,7 +269,7 @@ def main():
         try:
             frames = read_video_frames(video_path)
             logits, starts = sliding_window_inference(
-                model, frames, n_frame, stride, transform
+                model, frames, n_frame, stride, frame_size
             )
             results[video_id] = {
                 "logits": logits,
