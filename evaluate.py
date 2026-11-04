@@ -6,7 +6,7 @@ accuracy metrics, following the same logic as merge_isolated / compute_video.
 Usage:
     python evaluate.py --input window_predictions.csv
     python evaluate.py --input window_predictions.csv --method score  # raw logits instead of softmax
-    python evaluate.py --input window_predictions.csv --output results/
+    python evaluate.py --input window_predictions.csv --output results/rear/baseline
 """
 
 import argparse

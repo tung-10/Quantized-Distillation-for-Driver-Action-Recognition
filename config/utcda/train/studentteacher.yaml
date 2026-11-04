@@ -1,0 +1,68 @@
+experiment:
+  name: "StudentTeacher"
+  model_save_path: "./model/front/" # path to save the trained model
+  experiment_number: 1 # do not forget to change the experiment number
+
+data:
+  name: "Custom"
+  util_location: "framework_activity_recognition.datautils.prepare_custom"
+  data_path: "./utcda_splitted/"
+  train_split: "train_clip_front.csv"
+  test_split:  "test_clip_front.csv"
+  stride: 16
+  sampler:
+    use: True
+    location: "framework_activity_recognition.sampler.OversampleMinorityClassSampler"
+    parameter:
+      oversample_factor: 5
+      skip_classes: [0]
+  n_frame: 16
+  frame_size: 224
+
+teacher:
+  use: True
+  location: "architecture.videomae.VideoMAETeacher"
+  name: "vit_large"  
+  checkpoint: "./pretrained/utcda_rear/checkpoint-29.pth"   
+  num_classes: 7
+  skip_replace_last_layer: True
+  
+student:
+  location: "architecture.mobilenet.MobileNetLogit"
+  width_mult: 0.5 # 1.0 1.5
+  dropout_prob: 0.2
+  name: "inception"
+
+pretraining:
+  use: True
+  #student
+  path: "./pretrained/kinetics_mobilenet_0.5x_RGB_16_best.pth"
+  student_model_num_classes: 600
+  fine_tune_only_last_layer: False
+  #teacher (used although pretraining["use"] = true)
+  teacher_model_num_classes: 7
+  
+train:
+  modality: "train_st"
+  epoch: 30
+  criterion: 
+    name : "CrossEntropyLoss"
+  optimizer:
+    name: "SGD"
+    parameter: {"lr": 0.001, "momentum": 0.9, "weight_decay": 0.00001}
+  batch_size: 8
+  num_workers: 4
+  scheduler:
+    use: True
+    name: "MultiStepLR"
+    parameter: {"milestones": [10,20], "gamma": 0.2}
+  test_rate: 5
+  temperature: 3 # 1 5 7 9
+  teacher_weight: 0.6 # 0.5 0.6 0.7 0.8 1.0
+
+# resume:
+#   use: True
+#   path: "./model/rear/StudentTeacher/exp2/checkpoint_latest.pth"
+
+config:
+  path: "./config/utcda/train/studentteacher.yaml"

@@ -1,0 +1,19 @@
+smooth        : mean (k=4)
+threshold     : 0.1
+merge_thresh  : 2.0 s
+min_len       : 3.0 s
+iou_threshold : 0.5
+
+GT actions    : 86
+Predictions   : 110
+
+Mean Precision: 4.18%
+Mean Recall   : 16.48%
+Mean F1       : 6.65%
+
+Class 1 (Smoking): P=0.0%  R=0.0%  F1=0.0%  (GT=23, Pred=0, TP=0)
+Class 2 (Calling): P=0.0%  R=0.0%  F1=0.0%  (GT=8, Pred=0, TP=0)
+Class 3 (Texting): P=14.3%  R=62.5%  F1=23.3%  (GT=8, Pred=35, TP=5)
+Class 4 (Drinking): P=10.8%  R=36.4%  F1=16.7%  (GT=11, Pred=37, TP=4)
+Class 5 (Yawning): P=0.0%  R=0.0%  F1=0.0%  (GT=24, Pred=17, TP=0)
+Class 6 (Joking): P=0.0%  R=0.0%  F1=0.0%  (GT=12, Pred=21, TP=0)

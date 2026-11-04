@@ -11,9 +11,9 @@ architecture:
   location: "architecture.mobilenet.MobileNetLogit"
   width_mult: 0.5
   dropout_prob: 0.2
-  model: "./model/MobileNetBaseline_UTCDA/MobileNetBaseline_UTCDA/exp0/"
+  model: "/mnt/data/quangtungbk/qd-driver-activity-reco/model/front/StudentTeacher/exp0"
 
 train:
-  batch_size: 16
-  num_workers: 5
+  batch_size: 8
+  num_workers: 4
   pin_memory: False

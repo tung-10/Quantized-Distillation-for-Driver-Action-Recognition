@@ -231,26 +231,73 @@ def test_benchmark(config_file):
 
     quantization_framework = False
 
-    architecture_state_dict = torch.load(architecture_config["model"] + "/latest_model.pth")
-    if "model_state_dict" in architecture_state_dict:
+    architecture_state_dict = torch.load(architecture_config["model"] + "/checkpoint_latest.pth")
+    has_float_qat_state = "float_student_model_state_dict" in architecture_state_dict
+    has_int_qat_state = "int_student_model_state_dict" in architecture_state_dict
+    if has_float_qat_state or has_int_qat_state:
+        quantization_config = train_config.get("quantization", {})
+        quantization_mode = quantization_config.get("mode", "int")
+        if quantization_mode not in ("float", "int"):
+            raise ValueError(
+                "train.quantization.mode must be 'float' or 'int', "
+                f"got {quantization_mode!r}"
+            )
+
+        state_key = (
+            "float_student_model_state_dict"
+            if quantization_mode == "float"
+            else "int_student_model_state_dict"
+        )
+        if state_key not in architecture_state_dict:
+            raise KeyError(
+                f"Checkpoint does not contain '{state_key}' required for "
+                f"quantization mode {quantization_mode!r}."
+            )
+        if "fuse_module" not in architecture_state_dict:
+            raise KeyError("Quantization checkpoint is missing 'fuse_module'.")
+
+        architecture.eval()
+        architecture = torch.quantization.fuse_modules(
+            architecture, architecture_state_dict["fuse_module"]
+        )
+        architecture.train()
+        architecture.qconfig = torch.quantization.get_default_qat_qconfig(
+            quantization_config["backend"]
+        )
+        torch.quantization.prepare_qat(architecture, inplace=True)
+
+        if quantization_mode == "int":
+            architecture = torch.quantization.convert(
+                architecture.to("cpu").eval(), inplace=False
+            )
+            quantization_framework = True
+        architecture.load_state_dict(architecture_state_dict[state_key])
+    elif "model_state_dict" in architecture_state_dict:
         architecture.load_state_dict(architecture_state_dict["model_state_dict"])
     elif "student_model_state_dict" in architecture_state_dict:
         architecture.load_state_dict(architecture_state_dict["student_model_state_dict"])
+    elif "state_dict" in architecture_state_dict:
+        architecture.load_state_dict(architecture_state_dict["state_dict"], strict=False)
+    elif "model" in architecture_state_dict:
+        architecture.load_state_dict(architecture_state_dict["model"], strict=False)
+    elif all(isinstance(v, torch.Tensor) for v in architecture_state_dict.values()):
+        architecture.load_state_dict(architecture_state_dict, strict=False)
     else:
-        quantization_framework = True
-        architecture = torch.quantization.fuse_modules(architecture, architecture_state_dict["fuse_module"])
+        raise KeyError(
+            "Checkpoint does not contain a recognized model state dict. "
+            f"Available keys: {list(architecture_state_dict)}"
+        )
 
-        architecture.qconfig = torch.quantization.get_default_qat_qconfig(train_config["quantization"]["backend"])
-
-        torch.quantization.prepare_qat(architecture, inplace=True)
-
-        architecture = torch.quantization.convert(architecture.to('cpu').eval(), inplace=False)
-
-        architecture.load_state_dict(architecture_state_dict["int_student_model_state_dict"])
+    annotation_converter = architecture_state_dict.get("annotation")
+    if annotation_converter is None:
+        annotation_converter = test_set.__get_annotation_converter__()
+        logger.warning(
+            "Checkpoint has no annotation mapping; using the test dataset class mapping."
+        )
 
     test_loader = DataLoader(test_set, batch_size=train_config["batch_size"], shuffle=False, num_workers=train_config["num_workers"], pin_memory=train_config["pin_memory"])
 
-    wrapper = BenchmarkWrapper(architecture, num_classes, config_file, logger, architecture_state_dict["annotation"], quantization_framework)
+    wrapper = BenchmarkWrapper(architecture, num_classes, config_file, logger, annotation_converter, quantization_framework)
 
     wrapper.benchmark(test_loader)
     

@@ -1,26 +1,29 @@
 experiment:
   name: "StudentTeacherQuantization_VideoMAE"
-  experiment_number: 0
-  model_save_path: "./model"
+  experiment_number: 3
+  model_save_path: "./model/rear/"
 
 data:
   name: "Custom"
   util_location: "framework_activity_recognition.datautils.prepare_custom"
   data_path: "./utcda_splitted/"
-  train_split: "train_clip_front.csv"
-  test_split:  "test_clip_front.csv"
+  train_split: "train_clip_rear.csv"
+  test_split:  "test_clip_rear.csv"
   stride: 16
   sampler:
     use: True
-    location: "framework_activity_recognition.sampler.ImbalancedDatasetSampler"
-    parameter: {}
+    location: "framework_activity_recognition.sampler.OversampleMinorityClassSampler"
+    parameter:
+      oversample_factor: 5
+      skip_classes: [0]
   n_frame: 16
   frame_size: 224
 
 teacher:
   use: True
-  location: "architecture.videomae.VideoMAETeacher"  # ← file mới cần tạo
-  checkpoint: "checkpoint-29.pth"    # ← checkpoint VideoMAE của bạn
+  location: "architecture.videomae.VideoMAETeacher"
+  name: "vit_large"  
+  checkpoint: "./pretrained/utcda_rear/checkpoint-29.pth"   
   num_classes: 7
   skip_replace_last_layer: True
 
@@ -48,12 +51,12 @@ train:
   optimizer:
     name: "SGD"
     parameter: {"lr": 0.001, "momentum": 0.9, "weight_decay": 0.00001}
-  batch_size: 16
+  batch_size: 8
   num_workers: 4
   scheduler:
     use: True
     name: "MultiStepLR"
-    parameter: {"milestones": [50, 100, 150], "gamma": 0.1}
+    parameter: {"milestones": [10,20], "gamma": 0.2}
   test_rate: 40
   quantization:
     use: True
@@ -72,9 +75,12 @@ train:
       ['features.12.conv1', 'features.12.bn1'], ['features.12.conv2', 'features.12.bn2'],
       ['features.13.conv1', 'features.13.bn1'], ['features.13.conv2', 'features.13.bn2']]
     backend: 'fbgemm'
-    freeze_observer: 150
-    freeze_bn: 150
+    freeze_observer: 15
+    freeze_bn: 15
   temperature: 3
-  teacher_weight: 0.9
+  teacher_weight: 0.6
+# resume:
+#   use: True
+#   path: "./model/front/StudentTeacherQuantization_VideoMAE/exp1/checkpoint_latest.pth"
 config:
   path: "./config/utcda/train/studentteacher_quant.yaml"

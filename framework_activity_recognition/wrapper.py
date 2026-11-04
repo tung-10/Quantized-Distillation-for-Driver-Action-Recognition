@@ -156,7 +156,7 @@ class QuantizationAwareTrainingWrapper():
             self.writer.add_scalar("loss", current_epoch_loss, self.current_epoch + 1)
             self.logger.info("Loss for epoch " + str(self.current_epoch + 1) + " is " + str(current_epoch_loss))
 
-            if epoch % self.test_rate == 0:
+            if (epoch+1) % self.test_rate == 0:
                 del inputs, target
 
                 self.optimizer.zero_grad()
