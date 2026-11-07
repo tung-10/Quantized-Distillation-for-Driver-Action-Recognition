@@ -94,20 +94,16 @@ class Block(nn.Module):
 
 class VideoMAELogit(nn.Module):
     """
-    VideoMAE-Large wrapper cho framework Drive&Act.
-    Keys khớp 100% với checkpoint gốc (không cần prefix remapping).
-    Interface giống I3DLogit:
-      - __init__(config_file, architecture_config)
-      - forward(inp) → logits (B, num_classes), không qua softmax
     Input: (B, C, T, H, W)
     """
 
-    # Preset cho ViT-Base và ViT-Large
     _PRESETS = {
         "vit_base":  dict(embed_dim=768,  depth=12, num_heads=12),
         "vit_large": dict(embed_dim=1024, depth=24, num_heads=16),
         "vit_huge":  dict(embed_dim=1280, depth=32, num_heads=16),
     }
+    _IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1,1)
+    _IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1,1)
 
     def __init__(self, config_file, architecture_config):
         super().__init__()
@@ -143,13 +139,16 @@ class VideoMAELogit(nn.Module):
         nn.init.zeros_(self.head.bias)
 
     def forward(self, inp):
-        """inp: (B, C, T, H, W) → logits: (B, num_classes)"""
-        x = self.patch_embed(inp)          # (B, N, D)
+        x = (inp + 1.0) / 2.0
+        mean = _IMAGENET_MEAN.to(x.device)
+        std  = _IMAGENET_STD.to(x.device)
+        x = (x - mean) / std
+        x = self.patch_embed(x)
         for blk in self.blocks:
             x = blk(x)
-        x = self.fc_norm(x.mean(dim=1))   # mean pooling → (B, D)
+        x = self.fc_norm(x.mean(dim=1))
         x = self.dropout(x)
-        return self.head(x)                # (B, num_classes)
+        return self.head(x)
 
     def load_state_dict(self, state_dict, strict=True):
         # Bỏ key không thuộc model (logit_scale từ contrastive pretraining)
