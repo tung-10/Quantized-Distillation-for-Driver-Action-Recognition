@@ -3,12 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+# ImageNet mean/std (RGB order) dung de re-normalize input tu pipeline [-1,1] BGR
+# Shape (1, C, 1, 1, 1) de broadcast voi (B, C, T, H, W)
+_IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1, 1)
+_IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1, 1)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
-# VideoMAE building blocks (khớp 100% với checkpoint gốc)
+# VideoMAE building blocks (khop 100% voi checkpoint goc)
 # ──────────────────────────────────────────────────────────────────────────────
 
 class PatchEmbed3D(nn.Module):
-    """Tubelet embedding: Conv3D — khớp với checkpoint patch_embed.proj.*"""
+    """Tubelet embedding: Conv3D — khop voi checkpoint patch_embed.proj.*"""
     def __init__(self, img_size=224, patch_size=16, tubelet_size=2,
                  in_chans=3, embed_dim=1024):
         super().__init__()
@@ -28,7 +34,7 @@ class PatchEmbed3D(nn.Module):
 
 
 class Attention(nn.Module):
-    """BEiTv2-style attention: q_bias + v_bias riêng (khớp checkpoint)"""
+    """BEiTv2-style attention: q_bias + v_bias rieng (khop checkpoint)"""
     def __init__(self, dim, num_heads=16, attn_drop=0., proj_drop=0.):
         super().__init__()
         self.num_heads = num_heads
@@ -42,7 +48,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        # Ghép bias: [q_bias | 0 | v_bias]
+        # Ghep bias: [q_bias | 0 | v_bias]
         qkv_bias = torch.cat([self.q_bias,
                                torch.zeros_like(self.v_bias),
                                self.v_bias])
@@ -89,21 +95,26 @@ class Block(nn.Module):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# VideoMAELogit — wrapper chính cho framework Drive&Act
+# VideoMAELogit — wrapper chinh cho framework Drive&Act
 # ──────────────────────────────────────────────────────────────────────────────
 
 class VideoMAELogit(nn.Module):
     """
-    Input: (B, C, T, H, W)
+    VideoMAE-Large wrapper cho framework Drive&Act.
+    Keys khop 100% voi checkpoint goc (khong can prefix remapping).
+    Interface giong I3DLogit:
+      - __init__(config_file, architecture_config)
+      - forward(inp) -> logits (B, num_classes), khong qua softmax
+    Input: (B, C, T, H, W) — nhan input BGR [-1,1] tu pipeline,
+           tu dong flip sang RGB va apply ImageNet mean/std ben trong.
     """
 
+    # Preset cho ViT-Base va ViT-Large
     _PRESETS = {
         "vit_base":  dict(embed_dim=768,  depth=12, num_heads=12),
         "vit_large": dict(embed_dim=1024, depth=24, num_heads=16),
         "vit_huge":  dict(embed_dim=1280, depth=32, num_heads=16),
     }
-    _IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1,1)
-    _IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1,1)
 
     def __init__(self, config_file, architecture_config):
         super().__init__()
@@ -117,7 +128,7 @@ class VideoMAELogit(nn.Module):
         depth      = preset["depth"]
         num_heads  = preset["num_heads"]
 
-        # ── Backbone (keys khớp checkpoint) ───────────────────────────
+        # ── Backbone (keys khop checkpoint) ───────────────────────────
         self.patch_embed = PatchEmbed3D(
             img_size=224, patch_size=16, tubelet_size=2,
             in_chans=3, embed_dim=embed_dim,
@@ -139,25 +150,40 @@ class VideoMAELogit(nn.Module):
         nn.init.zeros_(self.head.bias)
 
     def forward(self, inp):
-        x = (inp + 1.0) / 2.0
-        mean = _IMAGENET_MEAN.to(x.device)
-        std  = _IMAGENET_STD.to(x.device)
+        """
+        inp: (B, C, T, H, W) — BGR [-1,1] tu pipeline cv2.
+        Pipeline:
+          1. BGR [-1,1] -> BGR [0,1]  : (inp + 1) / 2
+          2. BGR [0,1]  -> RGB [0,1]  : flip channel dim
+          3. RGB [0,1]  -> ImageNet norm: (x - mean) / std
+        """
+        # 1. Dua ve [0, 1]
+        x = (inp + 1.0) * 0.5                    # [-1,1] -> [0,1]
+
+        # 2. BGR -> RGB: flip channel axis (dim=1)
+        x = x.flip(1)                             # (B, C, T, H, W), C: B G R -> R G B
+
+        # 3. ImageNet mean/std normalize (RGB)
+        mean = _IMAGENET_MEAN.to(x.device, x.dtype)
+        std  = _IMAGENET_STD.to(x.device, x.dtype)
         x = (x - mean) / std
-        x = self.patch_embed(x)
+
+        # 4. ViT forward
+        x = self.patch_embed(x)                  # (B, N, D)
         for blk in self.blocks:
             x = blk(x)
-        x = self.fc_norm(x.mean(dim=1))
+        x = self.fc_norm(x.mean(dim=1))          # mean pooling -> (B, D)
         x = self.dropout(x)
-        return self.head(x)
+        return self.head(x)                       # (B, num_classes)
 
     def load_state_dict(self, state_dict, strict=True):
-        # Bỏ key không thuộc model (logit_scale từ contrastive pretraining)
+        # Bo key khong thuoc model (logit_scale tu contrastive pretraining)
         filtered = {k: v for k, v in state_dict.items()
                     if k not in ('logit_scale',)}
 
         missing, unexpected = super().load_state_dict(filtered, strict=False)
 
-        # Chỉ báo lỗi thực sự (bỏ qua cls_token, pos_embed nếu không có)
+        # Chi bao loi thuc su (bo qua cls_token, pos_embed neu khong co)
         ignorable = {'cls_token', 'pos_embed'}
         real_missing = [k for k in missing if k not in ignorable]
         if real_missing:
@@ -167,14 +193,15 @@ class VideoMAELogit(nn.Module):
 
         n_blocks = sum(1 for k in filtered if k.startswith('blocks.') and k.endswith('.norm1.weight'))
         print(f"[VideoMAELogit] Loaded — {n_blocks} transformer blocks, "
-              f"patch_embed 3D")
+              f"patch_embed 3D, BGR-flip+ImageNet-norm enabled")
+
 
 class _HeadProxy:
     """
-    Giả lập interface list[-1] để driver.py có thể gọi:
+    Gia lap interface list[-1] de driver.py co the goi:
         architecture.classifier[-1].in_features
         architecture.classifier[-1] = nn.Linear(...)
-    mà thực chất đọc/ghi vào self._model.head.
+    ma thuc chat doc/ghi vao self._model.head.
     """
     def __init__(self, model):
         self._model = model
@@ -182,6 +209,7 @@ class _HeadProxy:
         return self._model.head
     def __setitem__(self, idx, value):
         self._model.head = value
+
 # ──────────────────────────────────────────────────────────────────────────────
 # VideoMAETeacher — wrapper teacher cho student-teacher distillation
 # ──────────────────────────────────────────────────────────────────────────────
@@ -193,10 +221,12 @@ class VideoMAETeacher(nn.Module):
     def __init__(self, config_file, architecture_config):
         super().__init__()
         self.model = VideoMAELogit(config_file, architecture_config)
+
     @property
     def classifier(self):
-        """Proxy vào self.model.head, giả lập subscript list[-1]."""
+        """Proxy vao self.model.head, gia lap subscript list[-1]."""
         return _HeadProxy(self.model)
+
     def forward(self, inp):
         """inp: (B, C, T, H, W) -> logits: (B, num_classes)"""
         return self.model(inp)
