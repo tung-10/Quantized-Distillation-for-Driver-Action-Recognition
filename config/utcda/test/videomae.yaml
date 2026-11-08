@@ -15,6 +15,6 @@ architecture:
   model: ./pretrained/utcda_front/
 
 train:
-  batch_size: 8    # VideoMAE nặng hơn I3D, giảm batch size
+  batch_size: 8 
   num_workers: 4
   pin_memory: False
