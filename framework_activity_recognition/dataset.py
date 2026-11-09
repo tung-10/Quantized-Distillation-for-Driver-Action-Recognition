@@ -213,6 +213,8 @@ class CustomDataset(Dataset):
 
     def _count_windows(self, n_frames: int) -> int:
         """How many sliding windows fit in a clip of n_frames?"""
+        if hasattr(self._slicer, "count_windows"):
+            return self._slicer.count_windows(n_frames)
         n = self._slicer.n
         stride = self._slicer.stride
         if n_frames < n:

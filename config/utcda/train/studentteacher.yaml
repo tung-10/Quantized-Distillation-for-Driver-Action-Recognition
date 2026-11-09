@@ -1,7 +1,7 @@
 experiment:
   name: "StudentTeacher"
-  model_save_path: "./model/front/" # path to save the trained model
-  experiment_number: 1 # do not forget to change the experiment number
+  model_save_path: "./model/front/"
+  experiment_number: 4
 
 data:
   name: "Custom"
@@ -23,7 +23,7 @@ teacher:
   use: True
   location: "architecture.videomae.VideoMAETeacher"
   name: "vit_large"  
-  checkpoint: "./pretrained/utcda_rear/checkpoint-29.pth"   
+  checkpoint: "./pretrained/utcda_front/checkpoint-29.pth"   
   num_classes: 7
   skip_replace_last_layer: True
   
@@ -60,9 +60,9 @@ train:
   temperature: 3 # 1 5 7 9
   teacher_weight: 0.6 # 0.5 0.6 0.7 0.8 1.0
 
-# resume:
-#   use: True
-#   path: "./model/rear/StudentTeacher/exp2/checkpoint_latest.pth"
+resume:
+  use: True
+  path: "./model/front/StudentTeacher/exp4/checkpoint_latest.pth"
 
 config:
   path: "./config/utcda/train/studentteacher.yaml"

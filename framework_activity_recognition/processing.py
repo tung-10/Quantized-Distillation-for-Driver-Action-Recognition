@@ -355,58 +355,24 @@ def loadVideo(filepath, rescale=None, verbose=False, start_frame = 0, n_frames =
     #print (filepath)
 
     cap = cv2.VideoCapture(filepath)
-
-    if (start_frame > 0):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
-    # Interate over frames in video
     images = []
-    count = 0
-    max_video_length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) - start_frame-1
+    try:
+        if start_frame > 0:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
-    if (n_frames > max_video_length):
-        #print(filepath, start_frame, n_frames)
-        #print ("n_frames >= max_video_length")
-        pass
+        while cap.isOpened() and (n_frames <= 0 or len(images) < n_frames):
+            ret, image = cap.read()
+            if not ret:
+                break
 
-    if (n_frames > 0 and n_frames <= max_video_length):
-        video_length = n_frames
-    else:
-        video_length = max_video_length
+            if rescale:
+                image = Image.fromarray(image)
+                image = image.resize(new_dimensions, resample=Image.BILINEAR)
+                image = np.array(image)
 
-
-    while cap.isOpened():
-        # Extract the frame
-        ret, image = cap.read()
-        if rescale:
-            #Convert to PIL image for rescaling
-            image = Image.fromarray(image)
-            image = image.resize(new_dimensions, resample=Image.BILINEAR)
-            # Convert back to numpy array
-            image = np.array(image)
-
-
-
-        count = count + 1
-
-        #print(np.shape(images))
-
-        # If there are no more frames left
-        #print ("len(np.shape(image)): "+str(len(np.shape(image))))
-        if (count > video_length -1 or (len(np.shape(image))<2)):
-
-            cap.release()
-            # Print stats
-            if (verbose):
-                print("Done extracting frames.\n%d frames extracted" % count)
-                print("-----")
-                print(np.shape(image))
-                print(np.shape(images))
-            break
-
-        images.append(image)
-
-
+            images.append(image)
+    finally:
+        cap.release()
 
     images = np.array(images)
 
@@ -418,6 +384,7 @@ def loadVideo(filepath, rescale=None, verbose=False, start_frame = 0, n_frames =
         print(np.shape(images))
         print (start_frame)
         print (n_frames)
+        print("Frames extracted: %d" % len(images))
         print ("---")
 
     return images
@@ -668,4 +635,3 @@ def downsampleVideoList(files_to_be_processed, output_path, suffix_to_be_added="
             downsampleVideo(video_file, file_output_path, x=x, y=y)
 
             nfiles = nfiles - 1
-

@@ -9,6 +9,14 @@ _IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1, 1)
 _IMAGENET_STD  = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1, 1)
 
 
+def _sinusoid_encoding_table(n_position, dim):
+    positions = torch.arange(n_position, dtype=torch.float64).unsqueeze(1)
+    dimensions = torch.arange(dim, dtype=torch.float64)
+    angles = positions / torch.pow(10000.0, 2 * torch.div(dimensions, 2, rounding_mode="floor") / dim)
+    encoding = torch.where(dimensions.remainder(2) == 0, angles.sin(), angles.cos())
+    return encoding.to(torch.float32).unsqueeze(0)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # VideoMAE building blocks (khop 100% voi checkpoint goc)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -133,6 +141,17 @@ class VideoMAELogit(nn.Module):
             img_size=224, patch_size=16, tubelet_size=2,
             in_chans=3, embed_dim=embed_dim,
         )
+        data_config = config_file.get("data", {})
+        n_frame = data_config.get("n_frame", 16)
+        frame_size = data_config.get("frame_size", 224)
+        num_patches = (
+            (n_frame // self.patch_embed.tubelet_size)
+            * (frame_size // self.patch_embed.patch_size) ** 2
+        )
+        self.register_buffer(
+            "pos_embed", _sinusoid_encoding_table(num_patches, embed_dim),
+            persistent=False,
+        )
         self.blocks  = nn.ModuleList([
             Block(embed_dim, num_heads=num_heads, mlp_ratio=4.)
             for _ in range(depth)
@@ -170,6 +189,7 @@ class VideoMAELogit(nn.Module):
 
         # 4. ViT forward
         x = self.patch_embed(x)                  # (B, N, D)
+        x = x + self.pos_embed.to(dtype=x.dtype)
         for blk in self.blocks:
             x = blk(x)
         x = self.fc_norm(x.mean(dim=1))          # mean pooling -> (B, D)

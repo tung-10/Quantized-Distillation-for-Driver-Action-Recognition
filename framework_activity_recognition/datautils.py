@@ -3,7 +3,7 @@ import torchvision
 import torchvision.transforms as transforms
 import os
 from framework_activity_recognition.videotransform import RandomSelect, RandomCrop, RandomHorizontalFlip, \
-    normalizeColorInputZeroCenterUnitRange, CenterCrop, ToTensor, SlidingWindowSample
+    normalizeColorInputZeroCenterUnitRange, CenterCrop, Resize, ToTensor, SlidingWindowSample
 from framework_activity_recognition.parser import parseDriveNActSplitFiles, \
     parseDriveNActTestSplitFiles, parseCustomSplitFiles, parseCustomTestSplitFiles
 from framework_activity_recognition.dataset import VideoFileBasedDataset, DriveNActDataset, CustomDataset
@@ -158,12 +158,15 @@ def prepare_custom_test(config_file):
     n_frame    = config_file["data"].get("n_frame",    16)
     stride     = config_file["data"].get("stride",      16)
     frame_size = config_file["data"].get("frame_size", 224)
+    include_tail = config_file["data"].get("test_include_tail", False)
 
     test_df = parseCustomTestSplitFiles(data_path, test_split)
 
     transform_test = torchvision.transforms.Compose([
-        SlidingWindowSample(n=n_frame, stride=stride),
-        CenterCrop(height=frame_size, width=frame_size),
+        SlidingWindowSample(
+            n=n_frame, stride=stride, include_tail=include_tail,
+        ),
+        Resize(frame_size, frame_size),
         normalizeColorInputZeroCenterUnitRange(),
         ToTensor()
     ])

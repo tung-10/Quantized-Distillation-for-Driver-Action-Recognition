@@ -1,0 +1,36 @@
+2026-11-08 14:48:18,473 :: Checkpoint has no annotation mapping; using the test dataset class mapping.
+2026-11-08 14:59:15,016 :: Mean recall: 0.7919599547976979
+2026-11-08 14:59:15,016 :: Mean precision: 0.7462568089516227
+2026-11-08 14:59:15,016 :: Mean recall for class 0 (0): 0.6542800265428003
+2026-11-08 14:59:15,016 :: Mean precision for class 0 (0): 0.8996350364963503
+2026-11-08 14:59:15,016 :: Mean recall for class 1 (1): 0.7361111111111112
+2026-11-08 14:59:15,016 :: Mean precision for class 1 (1): 0.8907563025210085
+2026-11-08 14:59:15,017 :: Mean recall for class 2 (2): 0.8345070422535211
+2026-11-08 14:59:15,017 :: Mean precision for class 2 (2): 0.9595141700404858
+2026-11-08 14:59:15,017 :: Mean recall for class 3 (3): 0.9875
+2026-11-08 14:59:15,017 :: Mean precision for class 3 (3): 0.7821782178217822
+2026-11-08 14:59:15,017 :: Mean recall for class 4 (4): 0.8015873015873016
+2026-11-08 14:59:15,017 :: Mean precision for class 4 (4): 0.9619047619047619
+2026-11-08 14:59:15,017 :: Mean recall for class 5 (5): 0.696969696969697
+2026-11-08 14:59:15,017 :: Mean precision for class 5 (5): 0.35384615384615387
+2026-11-08 14:59:15,017 :: Mean recall for class 6 (6): 0.8327645051194539
+2026-11-08 14:59:15,017 :: Mean precision for class 6 (6): 0.37596302003081666
+2026-11-08 14:59:15,857 :: Size (MB): 1215.582853
+2026-11-08 16:06:16,592 :: Checkpoint has no annotation mapping; using the test dataset class mapping.
+2026-11-08 16:17:10,032 :: Mean recall: 0.8940961151127965
+2026-11-08 16:17:10,032 :: Mean precision: 0.861541708715532
+2026-11-08 16:17:10,032 :: Mean recall for class 0 (0): 0.9296615792966157
+2026-11-08 16:17:10,032 :: Mean precision for class 0 (0): 0.9524133242692047
+2026-11-08 16:17:10,032 :: Mean recall for class 1 (1): 0.9375
+2026-11-08 16:17:10,032 :: Mean precision for class 1 (1): 0.8333333333333334
+2026-11-08 16:17:10,032 :: Mean recall for class 2 (2): 0.8556338028169014
+2026-11-08 16:17:10,032 :: Mean precision for class 2 (2): 0.9346153846153846
+2026-11-08 16:17:10,032 :: Mean recall for class 3 (3): 0.9583333333333334
+2026-11-08 16:17:10,032 :: Mean precision for class 3 (3): 0.8363636363636363
+2026-11-08 16:17:10,032 :: Mean recall for class 4 (4): 0.9563492063492064
+2026-11-08 16:17:10,032 :: Mean precision for class 4 (4): 0.9488188976377953
+2026-11-08 16:17:10,032 :: Mean recall for class 5 (5): 0.7474747474747475
+2026-11-08 16:17:10,032 :: Mean precision for class 5 (5): 0.5481481481481482
+2026-11-08 16:17:10,032 :: Mean recall for class 6 (6): 0.8737201365187713
+2026-11-08 16:17:10,032 :: Mean precision for class 6 (6): 0.9770992366412213
+2026-11-08 16:17:10,845 :: Size (MB): 1215.582853

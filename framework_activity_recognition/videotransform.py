@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import cv2
 from framework_activity_recognition.processing import normalize_color_input_zero_center_unit_range, \
     normalize_color_input_zero_center_unit_range_per_channel, unit_range_zero_center_to_unit_range_zero_min,\
         center_crop, random_crop, random_select, random_horizontal_flip
@@ -32,6 +33,18 @@ class CenterCrop(object):
         return center_crop(input_tensor, self.height, self.width)
 
 
+class Resize(object):
+    def __init__(self, height, width):
+        self.height = height
+        self.width = width
+
+    def __call__(self, input_tensor):
+        return np.stack([
+            cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_LINEAR)
+            for frame in input_tensor
+        ])
+
+
 class RandomCrop(object):
     def __init__(self, height, width):
         self.height = height
@@ -61,13 +74,31 @@ class SlidingWindowSample(object):
         The clip is tiled until it reaches length n,
         and a single window is returned.
     """
-    def __init__(self, n: int = 16, stride: int = 8):
+    def __init__(self, n: int = 16, stride: int = 8, include_tail: bool = False):
         assert n > 0 and stride > 0, "n and stride must be positive integers"
         self.n = n
         self.stride = stride
+        self.include_tail = include_tail
+
+    def count_windows(self, n_frames: int) -> int:
+        if self.include_tail:
+            return max(1, len(range(0, max(n_frames - 1, 1), self.stride)))
+        if n_frames < self.n:
+            return 1
+        return (n_frames - self.n) // self.stride + 1
 
     def __call__(self, input_tensor: np.ndarray) -> list[np.ndarray]:
         T = input_tensor.shape[0]
+
+        if self.include_tail:
+            windows = []
+            for start in range(0, max(T - 1, 1), self.stride):
+                indices = np.linspace(
+                    start, start + self.n, num=self.n
+                ).astype(np.int64)
+                indices = np.clip(indices, 0, T - 1)
+                windows.append(input_tensor[indices])
+            return windows
 
         if T < self.n:
             reps = int(np.ceil(self.n / T))

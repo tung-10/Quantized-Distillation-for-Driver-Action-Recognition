@@ -2,7 +2,7 @@ data:
   name: "UTCDA"
   util_location: "framework_activity_recognition.datautils.prepare_custom_test"
   data_path: "./utcda_splitted/"
-  test_split: "test_clip_front.csv"
+  test_split: "test_clip_rear.csv"
   n_frame: 16
   stride: 16
   frame_size: 224
@@ -12,7 +12,7 @@ architecture:
   modality: "rgb"
   dropout_prob: 0.5
   name: "vit_large"                              
-  model: ./pretrained/utcda_front/
+  model: ./pretrained/utcda_rear/
 
 train:
   batch_size: 8 
