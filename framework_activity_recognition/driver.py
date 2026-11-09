@@ -199,10 +199,12 @@ def train(config_file):
 
         resumed_epoch  = ckpt.get('current_epoch', ckpt['epoch'] + 1)
         resumed_recall = ckpt.get('best_recall', 0.0)
+        resumed_best_epoch = ckpt.get('best_epoch', -1)
         wrapper_input['current_epoch'] = resumed_epoch
         wrapper_input['best_recall']   = resumed_recall
+        wrapper_input['best_epoch']    = resumed_best_epoch
         wrapper_input['max_epochs'] = train_config["epoch"] - resumed_epoch
-        logger.info(f"Resumed at epoch {resumed_epoch}, best_recall={resumed_recall:.4f}, epochs left={wrapper_input['max_epochs']}")
+        logger.info(f"Resumed at epoch {resumed_epoch}, best_recall={resumed_recall:.4f}, best_epoch={resumed_best_epoch + 1}, epochs left={wrapper_input['max_epochs']}")
 
     wrapper = QuantizationAwareTrainingWrapper(**wrapper_input)
 

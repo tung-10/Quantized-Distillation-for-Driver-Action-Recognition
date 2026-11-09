@@ -13,7 +13,7 @@ class QuantizationAwareTrainingWrapper():
     Wrapper for all the trainig modalities. Activation of some modalities are based on parameter passed in the constructor
     """
     def __init__(self, student_network, num_classes, config_file, optimizer, writer, logger, teacher_network = None, annotation_converter = None,  criterion = nn.CrossEntropyLoss(),\
-        current_epoch = 0, max_epochs = 100, test_rate = 10, scheduler = None, best_recall = 0.0, temperature=5, teacher_weight=0.7, quantization_framework=False, freeze_observer=None, freeze_bn=None):
+        current_epoch = 0, max_epochs = 100, test_rate = 10, scheduler = None, best_recall = 0.0, best_epoch = -1, temperature=5, teacher_weight=0.7, quantization_framework=False, freeze_observer=None, freeze_bn=None):
         """
         Arguments:
             student_network: model to be trained using distillation loss
@@ -52,6 +52,7 @@ class QuantizationAwareTrainingWrapper():
         self.test_rate = test_rate
         self.scheduler = scheduler
         self.best_recall = best_recall
+        self.best_epoch = best_epoch
         self.quantization_framework = quantization_framework
         self.temperature = temperature
         self.teacher_weight = teacher_weight
@@ -156,19 +157,21 @@ class QuantizationAwareTrainingWrapper():
             self.writer.add_scalar("loss", current_epoch_loss, self.current_epoch + 1)
             self.logger.info("Loss for epoch " + str(self.current_epoch + 1) + " is " + str(current_epoch_loss))
 
-            if (epoch+1) % self.test_rate == 0:
+            self.current_epoch += 1
+
+            if self.current_epoch % self.test_rate == 0:
                 del inputs, target
 
                 self.optimizer.zero_grad()
 
                 student_mean_recall, student_mean_precision, student_recall_list, student_precision_list, teacher_mean_recall, teacher_mean_precision, teacher_recall_list, teacher_precision_list = self.test(test_loader)
 
-                self.write_to_tensorboard(epoch, self.writer, self.annotation_converter, student_mean_recall, student_mean_precision, student_recall_list, student_precision_list, teacher_mean_recall, teacher_mean_precision, teacher_recall_list, teacher_precision_list)
+                self.write_to_tensorboard(self.current_epoch - 1, self.writer, self.annotation_converter, student_mean_recall, student_mean_precision, student_recall_list, student_precision_list, teacher_mean_recall, teacher_mean_precision, teacher_recall_list, teacher_precision_list)
                 
                 if student_mean_recall > self.best_recall:
                     self.best_recall = student_mean_recall
-                    self.best_epoch = epoch
-                    self.save_model(epoch, self.student_network, self.quantization_framework, self.optimizer, self.criterion, self.annotation_converter, self.config_file['experiment']['model_save_path'] + "/" + self.config_file['experiment']['name'] + "/exp" + str(self.config_file["experiment"]["experiment_number"]) + "/best_model.pth", self.teacher_network, self.scheduler, None)
+                    self.best_epoch = self.current_epoch - 1
+                    self.save_model(self.current_epoch - 1, self.student_network, self.quantization_framework, self.optimizer, self.criterion, self.annotation_converter, self.config_file['experiment']['model_save_path'] + "/" + self.config_file['experiment']['name'] + "/exp" + str(self.config_file["experiment"]["experiment_number"]) + "/best_model.pth", self.teacher_network, self.scheduler, None)
 
             checkpoint_path = (
                 self.config_file['experiment']['model_save_path'] + "/" +
@@ -177,20 +180,16 @@ class QuantizationAwareTrainingWrapper():
                 "/checkpoint_latest.pth"
             )
             self.save_model(
-                epoch, self.student_network, self.quantization_framework,
+                self.current_epoch - 1, self.student_network, self.quantization_framework,
                 self.optimizer, self.criterion, self.annotation_converter,
                 checkpoint_path, self.teacher_network, self.scheduler, None
             )
 
-
-                
-            self.current_epoch += 1
-
-        self.logger.info("Training complete for epoch " + str(epoch))
+        self.logger.info("Training complete for epoch " + str(self.current_epoch))
         self.logger.info("The best mean recall is " + str(self.best_recall))
         self.logger.info("The best epoch is " + str(self.best_epoch + 1))
 
-        self.save_model(epoch, self.student_network, self.quantization_framework, self.optimizer, self.criterion, self.annotation_converter, self.config_file['experiment']['model_save_path'] + "/" + self.config_file['experiment']['name'] + "/exp" + str(self.config_file["experiment"]["experiment_number"]) + "/latest_model.pth", self.teacher_network, self.scheduler)
+        self.save_model(self.current_epoch - 1, self.student_network, self.quantization_framework, self.optimizer, self.criterion, self.annotation_converter, self.config_file['experiment']['model_save_path'] + "/" + self.config_file['experiment']['name'] + "/exp" + str(self.config_file["experiment"]["experiment_number"]) + "/latest_model.pth", self.teacher_network, self.scheduler)
 
     def test(self, test_loader):
         """
@@ -360,11 +359,14 @@ class QuantizationAwareTrainingWrapper():
         save_dict['epoch'] = epoch
         save_dict['current_epoch'] = self.current_epoch 
         save_dict['best_recall'] = self.best_recall
+        save_dict['best_epoch'] = self.best_epoch
         save_dict['optimizer_state_dict'] = optimizer.state_dict()
         save_dict['loss'] = criterion
         save_dict['annotation'] = annotation
 
-        torch.save(save_dict, location)
+        temporary_location = location + ".tmp"
+        torch.save(save_dict, temporary_location)
+        os.replace(temporary_location, location)
 
 class BenchmarkWrapper():
     """
@@ -539,8 +541,6 @@ class BenchmarkWrapper():
                 torch.cuda.synchronize()
 
                 self.logger.info("GPU inference time (ms): " + str(start_event.elapsed_time(end_event)))
-
-
 
 
 
