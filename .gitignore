@@ -96,7 +96,7 @@ DriveAndAct/
 Drive&Act/
 raw_data/
 processed_data/
-
+pretrained/
 *.mp4
 *.avi
 *.mov
